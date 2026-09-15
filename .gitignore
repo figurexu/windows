@@ -1,0 +1,15 @@
+# 调试/运行产物（不入库）
+overlay_debug.log
+taskbar_overlay_pos.txt
+enum_debug.log
+enum_debug2.log
+zorder_debug.log
+probe_windows.ps1
+probe_windows2.ps1
+probe_zorder.ps1
+taskbar_shot.png
+taskbar_shot2.png
+_preview.png
+_probe.exe
+.vs/
+*.user
