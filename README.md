@@ -2,6 +2,8 @@
 
 一个轻量的 Windows 桌面监控应用，**在任务栏上实时显示 CPU 与显卡的温度、功耗、频率**，点击弹出详细数据卡，绿色免安装，双击即用。
 
+![效果图](screenshots/screenshot-1.png)
+
 - 技术栈：C# + WinForms（.NET Framework 4.8，系统自带编译器编译，**无需安装任何 SDK / 运行时**）
 - 运行环境：Windows 10 / 11 x64（4K / 高 DPI 屏适配）
 - 数据来源：

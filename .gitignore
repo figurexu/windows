@@ -13,3 +13,7 @@ _preview.png
 _probe.exe
 .vs/
 *.user
+
+WindowsMonitor-*.zip
+release_tmp/
+
