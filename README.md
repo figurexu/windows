@@ -7,17 +7,18 @@
 - 技术栈：C# + WinForms（.NET Framework 4.8，系统自带编译器编译，**无需安装任何 SDK / 运行时**）
 - 运行环境：Windows 10 / 11 x64（4K / 高 DPI 屏适配）
 - 数据来源：
-  - **CPU**：AIDA64 共享内存（`AIDA64_SensorValues`，AIDA64 的 HVCI 兼容内核驱动采集，本程序只读内存映射，无需任何内核驱动）
+  - **CPU**：优先 AIDA64 共享内存（`AIDA64_SensorValues`，AIDA64 的 HVCI 兼容内核驱动采集，本程序只读内存映射，无需任何内核驱动）；AIDA64 未运行时自动降级到 **Windows 原生性能计数器**（仅频率）
   - **GPU**：LibreHardwareMonitor（0.9.6，走 NVIDIA NVAPI 用户态接口）
 
 ## 快速使用
 
-1. 打开 **AIDA64 → 文件 → 设置 → 硬件监控 → 外部应用**，勾选 **启用共享内存**，确定
-2. **保持 AIDA64 常驻运行**（最小化即可）
-3. 双击 `WindowsMonitor.exe`，UAC 弹窗点"是"
-4. 监控条会**直接嵌入任务栏**（在开始按钮旁边），数据每秒实时刷新
+1. （可选）打开 **AIDA64 → 文件 → 设置 → 硬件监控 → 外部应用**，勾选 **启用共享内存**，确定 —— 勾选后 CPU 温度/功耗/频率全量显示
+2. 双击 `WindowsMonitor.exe`，UAC 弹窗点"是"
+3. 监控条会**直接嵌入任务栏**（在开始按钮旁边），数据每秒实时刷新
 
 > ⚠️ 程序需要**管理员权限**（首次启动会弹出 UAC 确认框，点"是"）。GPU 功耗/频率经 NVIDIA API 读取，需要管理员权限。
+
+> 💡 **无 AIDA64 也能用（降级模式）**：CPU 频率通过 Windows 原生性能计数器读取（`% Processor Performance` × 基准频率），CPU 温度/功耗显示 `--`；启动 AIDA64 / HWiNFO 后温度、功耗自动恢复，无需重启程序。
 
 ## 任务栏显示（核心功能）
 
@@ -31,7 +32,8 @@
 
 | 面板 | 温度 | 功耗 | 频率 | 数据来源 |
 |------|------|------|------|----------|
-| CPU | ✓ | ✓ | ✓ | AIDA64 共享内存 |
+| CPU（AIDA64 运行中） | ✓ | ✓ | ✓ | AIDA64 共享内存 |
+| CPU（无 AIDA64，降级） | -- | -- | ✓ | Windows 原生性能计数器 |
 | GPU（NVIDIA / AMD / Intel） | ✓ | ✓ | ✓ | LibreHardwareMonitor / NVAPI |
 
 - 每 1 秒刷新一次
@@ -46,7 +48,15 @@
 而 AIDA64 使用了自己开发并通过 HVCI 合规认证、正式签名的内核驱动，所以它能读到 CPU 数据。
 本程序通过 AIDA64 官方提供的共享内存接口读取同一份数据，因此**无需关闭内存完整性**。
 
-如果 AIDA64 未运行/未启用共享内存，CPU 面板会显示提示文字和 `--`；显卡读数不受影响。
+CPU 温度/功耗需要读取 CPU 内部的能量与温度寄存器（MSR），**Windows 用户态没有任何原生 API
+可以读取**（`Processor Energy` 等功耗计数器在多数平台并不存在），这正是 AIDA64 / HWiNFO 需要
+内核驱动的原因。因此：
+
+- AIDA64 / HWiNFO 运行时：温度、功耗、频率全量显示
+- 都不运行时：自动降级为 Windows 原生性能计数器，仅显示频率（`% Processor Performance` × 基准频率），温度/功耗显示 `--`
+- 数据源是**热切换**的：随时启动或退出 AIDA64，无需重启本程序
+
+显卡读数不受 AIDA64 影响。
 
 ## 目录结构
 
@@ -66,19 +76,20 @@ Windows 系统自带 .NET Framework 4.8 编译器：
 & "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /nologo /target:winexe /platform:x64 /optimize+ `
   /win32manifest:"src\app.manifest" /out:"WindowsMonitor.exe" `
   /r:"lib\LibreHardwareMonitorLib.dll" /r:"lib\HidSharp.dll" /r:System.Management.dll `
-  src\Program.cs src\MonitorService.cs src\Aida64Source.cs src\TaskbarOverlay.cs src\DetailPopup.cs src\MainForm.cs
+  src\Program.cs src\MonitorService.cs src\Aida64Source.cs src\NativeCpuSource.cs src\TaskbarOverlay.cs src\DetailPopup.cs src\MainForm.cs
 ```
 
 ## 常见问题
 
 | 现象 | 原因与处理 |
 |------|-----------|
-| 任务栏没有监控条 | 点托盘图标菜单里的"显示任务栏监控"；确认 AIDA64 已启用共享内存 |
-| CPU 面板显示 `--` 和"内核驱动被拦截" | AIDA64 未运行或未启用共享内存：检查 AIDA64 设置中"外部应用 → 启用共享内存"是否勾选 |
+| 任务栏没有监控条 | 点托盘图标菜单里的"显示任务栏监控"；程序会自动跟随任务栏重建并恢复显示 |
+| CPU 温度/功耗显示 `--`，频率正常 | AIDA64 / HWiNFO 未运行（降级模式，仅原生频率）。启动 AIDA64 并启用共享内存后自动恢复 |
+| 任务栏监控消失（explorer 重启/开始菜单崩溃后） | 已自动修复：程序每 300ms 校验任务栏句柄，失效即自动重新嵌入 |
 | 运行提示需要管理员权限 | 正常现象，UAC 点"是" |
 | 未检测到显卡 | 多为虚拟机或远程桌面环境；实体机 NVIDIA/AMD/Intel 显卡均可识别 |
 
 ## 致谢
 
 - 显卡传感器读取：[LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor)（MPL-2.0）
-- CPU 传感器读取：AIDA64 External Applications 共享内存接口（需 AIDA64 授权）
+- CPU 传感器读取：AIDA64 External Applications 共享内存接口（需 AIDA64 授权）；无 AIDA64 时使用 Windows 原生性能计数器

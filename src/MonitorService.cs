@@ -29,6 +29,7 @@ namespace WindowsMonitor
         private readonly Computer _computer;
         private readonly UpdateVisitor _visitor = new UpdateVisitor();
         private readonly Aida64Source _aida64 = new Aida64Source();
+        private readonly NativeCpuSource _nativeCpu = new NativeCpuSource();
         private bool _disposed;
 
         public MonitorService()
@@ -54,7 +55,8 @@ namespace WindowsMonitor
             IHardware cpu = FindFirst(HardwareType.Cpu);
             if (cpu != null) snap.CpuName = cpu.Name;
 
-            // CPU 优先走 AIDA64 共享内存（HVCI 兼容，无需内核驱动）；不可用时回退到本地驱动读取。
+            // CPU 优先走 AIDA64 共享内存（HVCI 兼容，无需内核驱动）；
+            // 不可用时降级到 Windows 原生性能计数器（仅频率；温度/功耗需内核驱动，保持 null）。
             float? aidaTemp, aidaPower, aidaClock;
             if (_aida64.TryRead(out aidaTemp, out aidaPower, out aidaClock))
             {
@@ -64,26 +66,14 @@ namespace WindowsMonitor
                 snap.CpuClock = aidaClock;
                 if (snap.CpuName.Length == 0) snap.CpuName = "CPU";
             }
-            else if (cpu != null)
+            else
             {
-                snap.CpuTemperature = PickSensor(cpu, SensorType.Temperature,
-                    new string[] { "CPU Package", "Package", "Tctl", "Tdie", "Core Average", "Core Max" });
-                snap.CpuPower = PickSensor(cpu, SensorType.Power,
-                    new string[] { "CPU Package", "Package", "CPU PPT", "CPU Total", "CPU Cores", "CPU" });
-                snap.CpuClock = PickClock(cpu);
-
-                // 内核驱动（WinRing0）被内存完整性/安全软件拦截时，MSR/SMU 读数为 0。
-                // 温度/功耗/频率三项全为 0 视为读取失败，标记为不可用，避免显示误导性的 0。
-                bool allZero = snap.CpuTemperature.HasValue && snap.CpuTemperature.Value <= 0f
-                            && snap.CpuPower.HasValue && snap.CpuPower.Value <= 0f
-                            && snap.CpuClock.HasValue && snap.CpuClock.Value <= 0f;
-                if (allZero)
-                {
-                    snap.CpuTemperature = null;
-                    snap.CpuPower = null;
-                    snap.CpuClock = null;
-                    snap.CpuBlocked = true;
-                }
+                snap.CpuFromAida64 = false;
+                snap.CpuClock = _nativeCpu.ReadClock();
+                snap.CpuPower = _nativeCpu.ReadPower(); // 原生无功耗读数
+                snap.CpuTemperature = null;            // 原生无温度读数
+                if (cpu != null && snap.CpuName.Length == 0) snap.CpuName = cpu.Name;
+                if (snap.CpuName.Length == 0) snap.CpuName = "CPU";
             }
 
             IHardware gpu = FindFirst(HardwareType.GpuNvidia, HardwareType.GpuAmd, HardwareType.GpuIntel);
@@ -177,6 +167,8 @@ namespace WindowsMonitor
             _disposed = true;
             try { _computer.Close(); }
             catch { /* 忽略关闭异常 */ }
+            try { _nativeCpu.Dispose(); }
+            catch { }
         }
 
         /// <summary>遍历所有已启用的硬件并刷新其传感器。</summary>

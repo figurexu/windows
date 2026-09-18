@@ -180,14 +180,21 @@ namespace WindowsMonitor
             if (!OverlayOn) { HideIfVisible(); return; }
             try
             {
-                if (_tray == IntPtr.Zero)
+                IntPtr tray = FindWindow("Shell_TrayWnd", null);
+                if (tray == IntPtr.Zero) { HideIfVisible(); return; }
+
+                // 任务栏句柄变化（explorer 重启/任务栏重建）或父窗口丢失（父销毁后
+                // Windows 会把子窗口挂到桌面 #32769）→ 重新嵌入，否则显示会永久消失。
+                bool rebind = _tray != tray || GetParent(Handle) != _tray;
+                if (rebind)
                 {
-                    IntPtr tray = FindWindow("Shell_TrayWnd", null);
-                    if (tray == IntPtr.Zero) { HideIfVisible(); return; }
-                    _tray = tray;
+                    int st = GetWindowLong(Handle, GWL_STYLE);
+                    SetWindowLong(Handle, GWL_STYLE, st & ~WS_CHILD); // 先恢复顶层，避免悬挂
                     SetParent(Handle, tray);
-                    int style = GetWindowLong(Handle, GWL_STYLE);
-                    SetWindowLong(Handle, GWL_STYLE, style | WS_CHILD);
+                    int st2 = GetWindowLong(Handle, GWL_STYLE);
+                    SetWindowLong(Handle, GWL_STYLE, st2 | WS_CHILD);
+                    _tray = tray;
+                    _lastMoveX = _lastMoveY = _lastMoveW = _lastMoveH = int.MinValue; // 强制重新定位
                 }
 
                 RECT r;
@@ -552,6 +559,8 @@ namespace WindowsMonitor
         private static extern IntPtr FindWindow(string cls, string title);
         [DllImport("user32.dll")]
         private static extern IntPtr SetParent(IntPtr hWndChild, IntPtr hWndNewParent);
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetParent(IntPtr hWnd);
         [DllImport("user32.dll")]
         private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
         [DllImport("user32.dll")]

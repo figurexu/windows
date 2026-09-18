@@ -295,7 +295,7 @@ namespace WindowsMonitor
             float gap = 12f;
             float colW = (DesignW - 22f * 2f - gap) / 2f;
             DrawColumn(g, 22f, colTop, colW, colH, ColorCpu, "CPU",
-                _cpuFromAida64 ? "AIDA64" : (_cpuBlocked ? "受限" : "本地"),
+                _cpuFromAida64 ? "AIDA64" : (_cpuBlocked ? "受限" : "原生"),
                 _cpuOk && !_cpuBlocked, _cpuTemp, _cpuPower, _cpuClock, _cpuM0, _cpuM1, _cpuM2);
             DrawColumn(g, 22f + colW + gap, colTop, colW, colH, ColorGpu, "GPU",
                 "NVAPI", _gpuOk, _gpuTemp, _gpuPower, _gpuClock, _gpuM0, _gpuM1, _gpuM2);
@@ -409,6 +409,12 @@ namespace WindowsMonitor
             {
                 color = ColorDim;
                 return _cpuBlocked ? "CPU 数据不可用" : "CPU 数据不足";
+            }
+            // 无 AIDA64/HWiNFO 时温度/功耗不可用（仅原生频率），明确提示来源
+            if (!_cpuTemp.HasValue && !_cpuPower.HasValue)
+            {
+                color = ColorDim;
+                return "CPU 温度/功耗需 AIDA64 或 HWiNFO";
             }
             float? maxT = _cpuM0 != null ? _cpuM0.MaxValue : null;
             float? maxC = _cpuM2 != null ? _cpuM2.MaxValue : null;

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
@@ -364,7 +364,7 @@ namespace WindowsMonitor
             }
             p.Name = name;
             p.NameWarn = false;
-            p.Source = fromAida64 ? "AIDA64" : "本地驱动";
+            p.Source = fromAida64 ? "AIDA64" : "原生";
             p.Metrics[0].SetValue(temp, FormatValue(temp, "F0"), TempColor(temp));
             p.Metrics[1].SetValue(power, FormatValue(power, "F1"), null);
             p.Metrics[2].SetValue(clock, FormatClock(clock), null);
