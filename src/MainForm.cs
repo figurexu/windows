@@ -662,6 +662,25 @@ namespace WindowsMonitor
 
         private Icon CreateAppIcon()
         {
+            // 优先加载随程序分发的 app.ico（芯片 logo）；其次从 exe 资源提取；
+            // 均失败时回退到程序化绘制的旧图标。
+            try
+            {
+                string icoPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app.ico");
+                if (System.IO.File.Exists(icoPath))
+                {
+                    Icon ico = new Icon(icoPath);
+                    if (ico != null) return ico;
+                }
+            }
+            catch { }
+            try
+            {
+                Icon ex = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+                if (ex != null) return ex;
+            }
+            catch { }
+
             Bitmap bmp = new Bitmap(32, 32);
             using (Graphics g = Graphics.FromImage(bmp))
             {
